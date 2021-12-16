@@ -20,9 +20,11 @@ const EVENTS = {
     CREATE_ROOM: "CREATE_ROOM",
     JOIN_ROOM: "JOIN_ROOM",
     SEND_MESSAGE: "SEND_MESSAGE",
+    LEAVE_ROOM: "LEAVE_ROOM",
   },
   SERVER: {
-    UPDATE_ROOM: "UPDATE_ROOM",
+    CLIENT_JOINED_ROOM: "CLIENT_JOINED_ROOM",
+    CLIENT_LEFT_ROOM: "CLIENT_LEFT_ROOM",
     EMIT_MESSAGE: "EMIT_MESSAGE",
   },
 };
@@ -49,6 +51,47 @@ io.on("connection", (socket) => {
 
   socket.on(EVENTS.disconnect, () => {
     console.log("user disconeccted");
+  });
+
+  socket.on(EVENTS.CLIENT.CREATE_ROOM, ({ roomName }) => {
+    const newRoomId = uuid();
+
+    rooms[String(newRoomId)] = {
+      name: roomName,
+      usersInChat: 1,
+    };
+
+    if (socket.rooms.size > 1) {
+      const currentRoomId = [...socket.rooms][1];
+
+      const currentRoom = rooms[currentRoomId].name;
+
+      socket.emit(EVENTS.SERVER.EMIT_MESSAGE, {
+        message: `Leave '${currentRoom}' first.`,
+        email: "__ADMIN__",
+        id: uuid(),
+        time: Dayjs(),
+      });
+
+      return;
+    }
+
+    socket.join(newRoomId);
+    socket.emit(EVENTS.SERVER.CLIENT_JOINED_ROOM, {
+      roomId: newRoomId,
+      roomName: roomName,
+    });
+  });
+
+  socket.on(EVENTS.CLIENT.LEAVE_ROOM, () => {
+    if (socket.rooms.size === 1) return;
+
+    const currentRoomId = [...socket.rooms][1];
+
+    socket.leave(currentRoomId);
+
+    rooms[String(currentRoomId)].usersInChat -= 1;
+    socket.emit(EVENTS.SERVER.CLIENT_LEFT_ROOM);
   });
 
   socket.on(EVENTS.CLIENT.SEND_MESSAGE, ({ message, email, roomID }) => {
