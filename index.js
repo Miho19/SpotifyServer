@@ -23,16 +23,34 @@ const EVENTS = {
     SEND_MESSAGE: "SEND_MESSAGE",
     LEAVE_ROOM: "LEAVE_ROOM",
     GET_ROOM_MEMBERS: "GET_ROOM_MEMBERS",
+    GET_ROOM_LIST: "GET_ROOM_LIST",
   },
   SERVER: {
     CLIENT_JOINED_ROOM: "CLIENT_JOINED_ROOM",
     CLIENT_LEFT_ROOM: "CLIENT_LEFT_ROOM",
     EMIT_MESSAGE: "EMIT_MESSAGE",
     SEND_ROOM_MEMBERS: "SEND_ROOM_MEMBERS",
+    SEND_ROOM_LIST: "SEND_ROOM_LIST",
   },
 };
 
-const rooms = {};
+const rooms = {
+  1: {
+    name: "Party House #1",
+    totalMembers: 0,
+    members: new Set(),
+  },
+  2: {
+    name: "Party House #2",
+    totalMembers: 0,
+    members: new Set(),
+  },
+  3: {
+    name: "Party House #3",
+    totalMembers: 0,
+    members: new Set(),
+  },
+};
 
 const io = new Server(httpServer, {
   cors: {
@@ -90,6 +108,37 @@ io.on("connection", (socket) => {
     });
   });
 
+  socket.on(EVENTS.CLIENT.JOIN_ROOM, ({ roomName }) => {
+    if (socket.rooms.size > 1) {
+      const currentRoomID = [...socket.rooms][1];
+
+      const currentRoom = rooms[currentRoomID].name;
+
+      socket.emit(EVENTS.SERVER.EMIT_MESSAGE, {
+        message: `Leave '${currentRoom}' first.`,
+        email: "__ADMIN__",
+        id: uuid(),
+        time: Dayjs(),
+      });
+    }
+
+    // this needs to change to be unique name or we need to produce unqiue codes user can use to join parties
+    Object.keys(rooms).forEach((key) => {
+      if (roomName === rooms[String(key)].name) {
+        socket.join(key);
+        rooms[String(key)].totalMembers += 1;
+        rooms[String(key)].members.add({
+          name: socket.data.user.name,
+          imgSource: socket.data.user.imgSource,
+        });
+        socket.emit(EVENTS.SERVER.CLIENT_JOINED_ROOM, {
+          roomID: key,
+          roomName: rooms[String(key)].name,
+        });
+      }
+    });
+  });
+
   socket.on(EVENTS.CLIENT.LEAVE_ROOM, () => {
     if (socket.rooms.size === 1) return;
 
@@ -108,6 +157,18 @@ io.on("connection", (socket) => {
       id: uuid(),
       time: Dayjs(),
     });
+  });
+
+  socket.on(EVENTS.CLIENT.GET_ROOM_LIST, () => {
+    const roomList = Object.keys(rooms).map((key) => {
+      return {
+        roomID: key,
+        roomName: rooms[key].name,
+        totalMembers: rooms[key].totalMembers,
+      };
+    });
+
+    socket.emit(EVENTS.SERVER.SEND_ROOM_LIST, { roomList });
   });
 
   socket.on(EVENTS.CLIENT.GET_ROOM_MEMBERS, ({ roomID }) => {
