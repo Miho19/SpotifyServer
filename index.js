@@ -18,14 +18,17 @@ const EVENTS = {
   disconnect: "disconnect",
   CLIENT: {
     CREATE_ROOM: "CREATE_ROOM",
+    SET_USER_PROFILE: "SET_USER_PROFILE",
     JOIN_ROOM: "JOIN_ROOM",
     SEND_MESSAGE: "SEND_MESSAGE",
     LEAVE_ROOM: "LEAVE_ROOM",
+    GET_ROOM_MEMBERS: "GET_ROOM_MEMBERS",
   },
   SERVER: {
     CLIENT_JOINED_ROOM: "CLIENT_JOINED_ROOM",
     CLIENT_LEFT_ROOM: "CLIENT_LEFT_ROOM",
     EMIT_MESSAGE: "EMIT_MESSAGE",
+    SEND_ROOM_MEMBERS: "SEND_ROOM_MEMBERS",
   },
 };
 
@@ -54,17 +57,12 @@ io.on("connection", (socket) => {
   });
 
   socket.on(EVENTS.CLIENT.CREATE_ROOM, ({ roomName }) => {
-    const newRoomId = uuid();
-
-    rooms[String(newRoomId)] = {
-      name: roomName,
-      usersInChat: 1,
-    };
+    const newRoomID = uuid();
 
     if (socket.rooms.size > 1) {
-      const currentRoomId = [...socket.rooms][1];
+      const currentRoomID = [...socket.rooms][1];
 
-      const currentRoom = rooms[currentRoomId].name;
+      const currentRoom = rooms[currentRoomID].name;
 
       socket.emit(EVENTS.SERVER.EMIT_MESSAGE, {
         message: `Leave '${currentRoom}' first.`,
@@ -76,9 +74,18 @@ io.on("connection", (socket) => {
       return;
     }
 
-    socket.join(newRoomId);
+    rooms[String(newRoomID)] = {
+      name: roomName,
+      totalMembers: 1,
+      members: new Set().add({
+        name: socket.data.user.name,
+        imgSource: socket.data.user.imgSource,
+      }),
+    };
+
+    socket.join(newRoomID);
     socket.emit(EVENTS.SERVER.CLIENT_JOINED_ROOM, {
-      roomId: newRoomId,
+      roomID: newRoomID,
       roomName: roomName,
     });
   });
@@ -86,11 +93,11 @@ io.on("connection", (socket) => {
   socket.on(EVENTS.CLIENT.LEAVE_ROOM, () => {
     if (socket.rooms.size === 1) return;
 
-    const currentRoomId = [...socket.rooms][1];
+    const currentRoomID = [...socket.rooms][1];
 
-    socket.leave(currentRoomId);
+    socket.leave(currentRoomID);
 
-    rooms[String(currentRoomId)].usersInChat -= 1;
+    rooms[String(currentRoomID)].totalMembers -= 1;
     socket.emit(EVENTS.SERVER.CLIENT_LEFT_ROOM);
   });
 
@@ -101,5 +108,16 @@ io.on("connection", (socket) => {
       id: uuid(),
       time: Dayjs(),
     });
+  });
+
+  socket.on(EVENTS.CLIENT.GET_ROOM_MEMBERS, ({ roomID }) => {
+    if (!Object.prototype.hasOwnProperty.call(rooms, String(roomID))) return;
+
+    const roomMembers = [...rooms[String(roomID)].members];
+    socket.emit(EVENTS.SERVER.SEND_ROOM_MEMBERS, { roomMembers });
+  });
+
+  socket.on(EVENTS.CLIENT.SET_USER_PROFILE, ({ name, imgSource, email }) => {
+    socket.data.user = { name, imgSource, email };
   });
 });
