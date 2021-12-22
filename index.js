@@ -67,11 +67,30 @@ httpServer.listen(PORT, HOST, () => {
   console.log("Server Listening");
 });
 
+const removeMember = (currentRoomID, userName) => {
+  if (!rooms) return;
+  if (!userName) return;
+  if (!rooms[currentRoomID]) return;
+
+  rooms[String(currentRoomID)].totalMembers -= 1;
+  rooms[String(currentRoomID)].members.forEach((member) => {
+    if (member.name === userName) {
+      rooms[String(currentRoomID)].members.delete(member);
+    }
+  });
+};
+
 io.on("connection", (socket) => {
   console.log(`socket user: ${socket.id} connected`);
 
   socket.on(EVENTS.disconnect, () => {
     console.log("user disconeccted");
+  });
+
+  socket.on("disconnecting", (reason) => {
+    if (socket.rooms.size === 1) return;
+    const currentRoomID = [...socket.rooms][1];
+    removeMember(currentRoomID, socket.data.user.name);
   });
 
   socket.on(EVENTS.CLIENT.CREATE_ROOM, ({ roomName }) => {
@@ -84,8 +103,8 @@ io.on("connection", (socket) => {
 
       socket.emit(EVENTS.SERVER.EMIT_MESSAGE, {
         message: `Leave '${currentRoom}' first.`,
-        email: "__ADMIN__",
-        id: uuid(),
+        senderID: "__ADMIN__",
+        messagaeID: uuid(),
         time: Dayjs(),
       });
 
@@ -116,8 +135,8 @@ io.on("connection", (socket) => {
 
       socket.emit(EVENTS.SERVER.EMIT_MESSAGE, {
         message: `Leave '${currentRoom}' first.`,
-        email: "__ADMIN__",
-        id: uuid(),
+        senderID: "__ADMIN__",
+        messagaeID: uuid(),
         time: Dayjs(),
       });
     }
@@ -146,15 +165,19 @@ io.on("connection", (socket) => {
 
     socket.leave(currentRoomID);
 
-    rooms[String(currentRoomID)].totalMembers -= 1;
+    removeMember(currentRoomID, socket.data.user.name);
     socket.emit(EVENTS.SERVER.CLIENT_LEFT_ROOM);
   });
 
-  socket.on(EVENTS.CLIENT.SEND_MESSAGE, ({ message, email, roomID }) => {
-    io.to(roomID).emit(EVENTS.SERVER.EMIT_MESSAGE, {
+  socket.on(EVENTS.CLIENT.SEND_MESSAGE, ({ message }) => {
+    if (socket.rooms.size === 1) return;
+
+    const currentRoomID = [...socket.rooms][1];
+
+    io.to(currentRoomID).emit(EVENTS.SERVER.EMIT_MESSAGE, {
       message: message,
-      email: email,
-      id: uuid(),
+      senderID: socket.id,
+      messageID: uuid(),
       time: Dayjs(),
     });
   });
