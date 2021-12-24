@@ -5,6 +5,7 @@ import { Server } from "socket.io";
 import { v4 as uuid } from "uuid";
 
 import Dayjs from "dayjs";
+import { join } from "path";
 
 const app = express();
 const httpServer = createServer(app);
@@ -39,18 +40,46 @@ const rooms = {
     name: "Party House #1",
     totalMembers: 0,
     members: new Set(),
+    inviteLinks: [
+      {
+        linkID: uuid(),
+        timeExpire: new Dayjs("2100-12-24T08:17:55+0000"),
+      },
+    ],
   },
   2: {
     name: "Party House #2",
     totalMembers: 0,
     members: new Set(),
+    inviteLinks: [
+      {
+        linkID: uuid(),
+        timeExpire: new Dayjs("2100-12-24T08:17:55+0000"),
+      },
+    ],
   },
   3: {
     name: "Party House #3",
     totalMembers: 0,
     members: new Set(),
+    inviteLinks: [
+      {
+        linkID: uuid(),
+        timeExpire: new Dayjs("2100-12-24T08:17:55+0000"),
+      },
+    ],
   },
 };
+
+const inviteLinkToRoomKey = {};
+
+Object.keys(rooms).forEach((roomID) => {
+  rooms[roomID].inviteLinks.forEach((link) => {
+    inviteLinkToRoomKey[link.linkID] = {
+      roomID: roomID,
+    };
+  });
+});
 
 const io = new Server(httpServer, {
   cors: {
@@ -127,7 +156,9 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on(EVENTS.CLIENT.JOIN_ROOM, ({ roomName }) => {
+  socket.on(EVENTS.CLIENT.JOIN_ROOM, ({ joinLink }) => {
+    if (!joinLink) return;
+
     if (socket.rooms.size > 1) {
       const currentRoomID = [...socket.rooms][1];
 
@@ -141,20 +172,22 @@ io.on("connection", (socket) => {
       });
     }
 
-    // this needs to change to be unique name or we need to produce unqiue codes user can use to join parties
-    Object.keys(rooms).forEach((key) => {
-      if (roomName === rooms[String(key)].name) {
-        socket.join(key);
-        rooms[String(key)].totalMembers += 1;
-        rooms[String(key)].members.add({
-          name: socket.data.user.name,
-          imgSource: socket.data.user.imgSource,
-        });
-        socket.emit(EVENTS.SERVER.CLIENT_JOINED_ROOM, {
-          roomID: key,
-          roomName: rooms[String(key)].name,
-        });
-      }
+    const query = inviteLinkToRoomKey[joinLink];
+    if (!query) return;
+
+    const roomID = query.roomID;
+
+    socket.join(roomID);
+
+    rooms[roomID].totalMembers += 1;
+    rooms[roomID].members.add({
+      name: socket.data.user.name,
+      imgSource: socket.data.user.imgSource,
+    });
+
+    socket.emit(EVENTS.SERVER.CLIENT_JOINED_ROOM, {
+      roomID: roomID,
+      roomName: rooms[roomID].name,
     });
   });
 
@@ -186,6 +219,7 @@ io.on("connection", (socket) => {
     const roomList = Object.keys(rooms).map((key) => {
       return {
         roomID: key,
+        linkID: rooms[key].inviteLinks[0].linkID,
         roomName: rooms[key].name,
         totalMembers: rooms[key].totalMembers,
       };
