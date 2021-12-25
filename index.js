@@ -159,6 +159,8 @@ io.on("connection", (socket) => {
   socket.on(EVENTS.CLIENT.JOIN_ROOM, ({ joinLink }) => {
     if (!joinLink) return;
 
+    const time = Dayjs();
+
     if (socket.rooms.size > 1) {
       const currentRoomID = [...socket.rooms][1];
 
@@ -168,7 +170,7 @@ io.on("connection", (socket) => {
         message: `Leave '${currentRoom}' first.`,
         senderID: "__ADMIN__",
         messagaeID: uuid(),
-        time: Dayjs(),
+        time: time,
       });
     }
 
@@ -183,6 +185,7 @@ io.on("connection", (socket) => {
     rooms[roomID].members.add({
       name: socket.data.user.name,
       imgSource: socket.data.user.imgSource,
+      timeJoined: time,
     });
 
     socket.emit(EVENTS.SERVER.CLIENT_JOINED_ROOM, {
