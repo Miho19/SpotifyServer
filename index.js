@@ -5,7 +5,6 @@ import { Server } from "socket.io";
 import { v4 as uuid } from "uuid";
 
 import Dayjs from "dayjs";
-import { join } from "path";
 
 const app = express();
 const httpServer = createServer(app);
@@ -13,6 +12,7 @@ const httpServer = createServer(app);
 const PORT = 4000;
 const HOST = "localhost";
 const CORSORIGIN = "http://localhost:3000";
+const PLAYLISTID = "1qzGPv5E2rf7KIeE9wN27Y";
 
 const EVENTS = {
   connection: "connection",
@@ -25,6 +25,7 @@ const EVENTS = {
     LEAVE_ROOM: "LEAVE_ROOM",
     GET_ROOM_MEMBERS: "GET_ROOM_MEMBERS",
     GET_ROOM_LIST: "GET_ROOM_LIST",
+    GET_ROOM_PLAYLISTID: "GET_ROOM_PLAYLISTID",
   },
   SERVER: {
     CLIENT_JOINED_ROOM: "CLIENT_JOINED_ROOM",
@@ -32,6 +33,7 @@ const EVENTS = {
     EMIT_MESSAGE: "EMIT_MESSAGE",
     SEND_ROOM_MEMBERS: "SEND_ROOM_MEMBERS",
     SEND_ROOM_LIST: "SEND_ROOM_LIST",
+    SEND_ROOM_PLAYLISTID: "SEND_ROOM_PLAYLISTID",
   },
 };
 
@@ -40,28 +42,7 @@ const rooms = {
     name: "Party House #1",
     totalMembers: 0,
     members: new Set(),
-    inviteLinks: [
-      {
-        linkID: uuid(),
-        timeExpire: new Dayjs("2100-12-24T08:17:55+0000"),
-      },
-    ],
-  },
-  2: {
-    name: "Party House #2",
-    totalMembers: 0,
-    members: new Set(),
-    inviteLinks: [
-      {
-        linkID: uuid(),
-        timeExpire: new Dayjs("2100-12-24T08:17:55+0000"),
-      },
-    ],
-  },
-  3: {
-    name: "Party House #3",
-    totalMembers: 0,
-    members: new Set(),
+    playlistID: PLAYLISTID,
     inviteLinks: [
       {
         linkID: uuid(),
@@ -73,13 +54,20 @@ const rooms = {
 
 const inviteLinkToRoomKey = {};
 
-Object.keys(rooms).forEach((roomID) => {
-  rooms[roomID].inviteLinks.forEach((link) => {
-    inviteLinkToRoomKey[link.linkID] = {
-      roomID: roomID,
-    };
+const generateInviteToRoomKey = () => {
+  let numOfLinks = 0;
+
+  Object.keys(rooms).forEach((roomID) => {
+    rooms[roomID].inviteLinks.forEach((link) => {
+      inviteLinkToRoomKey[link.linkID] = {
+        roomID: roomID,
+      };
+      numOfLinks++;
+    });
   });
-});
+
+  return numOfLinks;
+};
 
 const io = new Server(httpServer, {
   cors: {
@@ -93,7 +81,11 @@ app.get("/", (req, res) => {
 });
 
 httpServer.listen(PORT, HOST, () => {
-  console.log("Server Listening");
+  console.log(`Server Listening ${HOST}::${PORT}`);
+
+  console.log(
+    `Generating permanant links to room keys: ${generateInviteToRoomKey()}`
+  );
 });
 
 const removeMember = (currentRoomID, userName) => {
@@ -240,5 +232,17 @@ io.on("connection", (socket) => {
 
   socket.on(EVENTS.CLIENT.SET_USER_PROFILE, ({ name, imgSource, email }) => {
     socket.data.user = { name, imgSource, email };
+  });
+
+  socket.on(EVENTS.CLIENT.GET_ROOM_PLAYLISTID, ({ roomID }) => {
+    if (!roomID) return;
+
+    const room = rooms[String(roomID)];
+
+    if (!room) return;
+
+    socket.emit(EVENTS.SERVER.SEND_ROOM_PLAYLISTID, {
+      playlistID: room.playlistID,
+    });
   });
 });
