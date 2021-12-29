@@ -26,14 +26,13 @@ const EVENTS = {
     GET_ROOM_MEMBERS: "GET_ROOM_MEMBERS",
     GET_ROOM_LIST: "GET_ROOM_LIST",
     GET_ROOM_PLAYLISTID: "GET_ROOM_PLAYLISTID",
+    GET_CURRENT_ROOM: "GET_CURRENT_ROOM",
   },
   SERVER: {
     CLIENT_JOINED_ROOM: "CLIENT_JOINED_ROOM",
     CLIENT_LEFT_ROOM: "CLIENT_LEFT_ROOM",
     EMIT_MESSAGE: "EMIT_MESSAGE",
-    SEND_ROOM_MEMBERS: "SEND_ROOM_MEMBERS",
-    SEND_ROOM_LIST: "SEND_ROOM_LIST",
-    SEND_ROOM_PLAYLISTID: "SEND_ROOM_PLAYLISTID",
+    ROOM_MEMBERS_CHANGED: "ROOM_MEMBERS_CHANGED",
   },
 };
 
@@ -184,16 +183,26 @@ io.on("connection", (socket) => {
       roomID: roomID,
       roomName: rooms[roomID].name,
     });
+
+    const roomMembers = [...rooms[String(roomID)].members];
+
+    socket
+      .to(String(roomID))
+      .emit(EVENTS.SERVER.ROOM_MEMBERS_CHANGED, { roomMembers: roomMembers });
   });
 
   socket.on(EVENTS.CLIENT.LEAVE_ROOM, () => {
     if (socket.rooms.size === 1) return;
-
     const currentRoomID = [...socket.rooms][1];
+    removeMember(currentRoomID, socket.data.user.name);
+
+    const roomMembers = [...rooms[String(currentRoomID)].members];
+
+    socket
+      .to(String(currentRoomID))
+      .emit(EVENTS.SERVER.ROOM_MEMBERS_CHANGED, { roomMembers: roomMembers });
 
     socket.leave(currentRoomID);
-
-    removeMember(currentRoomID, socket.data.user.name);
     socket.emit(EVENTS.SERVER.CLIENT_LEFT_ROOM);
   });
 
@@ -210,7 +219,7 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on(EVENTS.CLIENT.GET_ROOM_LIST, () => {
+  socket.on(EVENTS.CLIENT.GET_ROOM_LIST, (callback) => {
     const roomList = Object.keys(rooms).map((key) => {
       return {
         roomID: key,
@@ -220,29 +229,37 @@ io.on("connection", (socket) => {
       };
     });
 
-    socket.emit(EVENTS.SERVER.SEND_ROOM_LIST, { roomList });
+    callback({ roomList });
   });
 
-  socket.on(EVENTS.CLIENT.GET_ROOM_MEMBERS, ({ roomID }) => {
-    if (!Object.prototype.hasOwnProperty.call(rooms, String(roomID))) return;
+  socket.on(EVENTS.CLIENT.GET_ROOM_MEMBERS, (callback) => {
+    if (socket.rooms.size === 1) return;
 
-    const roomMembers = [...rooms[String(roomID)].members];
-    socket.emit(EVENTS.SERVER.SEND_ROOM_MEMBERS, { roomMembers });
+    const currentRoomID = [...socket.rooms][1];
+    const roomMembers = [...rooms[String(currentRoomID)].members];
+    callback({ roomMembers: roomMembers });
   });
 
   socket.on(EVENTS.CLIENT.SET_USER_PROFILE, ({ name, imgSource, email }) => {
     socket.data.user = { name, imgSource, email };
   });
 
-  socket.on(EVENTS.CLIENT.GET_ROOM_PLAYLISTID, ({ roomID }) => {
-    if (!roomID) return;
+  socket.on(EVENTS.CLIENT.GET_ROOM_PLAYLISTID, (callback) => {
+    if (!callback) return;
+    if (socket.rooms.size === 1) return;
 
-    const room = rooms[String(roomID)];
+    const currentRoomID = [...socket.rooms][1];
+    const playlistID = rooms[String(currentRoomID)].playlistID;
 
-    if (!room) return;
+    callback({ playlistID });
+  });
 
-    socket.emit(EVENTS.SERVER.SEND_ROOM_PLAYLISTID, {
-      playlistID: room.playlistID,
-    });
+  socket.on(EVENTS.CLIENT.GET_CURRENT_ROOM, (callback) => {
+    if (!callback) return;
+    if (socket.rooms.size === 1) return;
+
+    const currentRoomID = [...socket.rooms][1];
+    const currentRoomName = rooms[currentRoomID].name;
+    callback({ roomID: currentRoomID, roomName: currentRoomName });
   });
 });
