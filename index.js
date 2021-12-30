@@ -27,12 +27,14 @@ const EVENTS = {
     GET_ROOM_LIST: "GET_ROOM_LIST",
     GET_ROOM_PLAYLISTID: "GET_ROOM_PLAYLISTID",
     GET_CURRENT_ROOM: "GET_CURRENT_ROOM",
+    CHANGED_PARTYPLAYLIST: "CHANGED_PARTYPLAYLIST",
   },
   SERVER: {
     CLIENT_JOINED_ROOM: "CLIENT_JOINED_ROOM",
     CLIENT_LEFT_ROOM: "CLIENT_LEFT_ROOM",
     EMIT_MESSAGE: "EMIT_MESSAGE",
     ROOM_MEMBERS_CHANGED: "ROOM_MEMBERS_CHANGED",
+    ROOM_PLAYLIST_CHANGED: "ROOM_PLAYLIST_CHANGED",
   },
 };
 
@@ -111,6 +113,12 @@ io.on("connection", (socket) => {
     if (socket.rooms.size === 1) return;
     const currentRoomID = [...socket.rooms][1];
     removeMember(currentRoomID, socket.data.user.name);
+  });
+
+  socket.on(EVENTS.CLIENT.CHANGED_PARTYPLAYLIST, () => {
+    if (socket.rooms.size === 1) return;
+    const currentRoomID = [...socket.rooms][1];
+    io.to(currentRoomID).emit(EVENTS.SERVER.ROOM_PLAYLIST_CHANGED);
   });
 
   socket.on(EVENTS.CLIENT.CREATE_ROOM, ({ roomName }) => {
