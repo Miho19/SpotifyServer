@@ -35,6 +35,8 @@ const EVENTS = {
     EMIT_MESSAGE: "EMIT_MESSAGE",
     ROOM_MEMBERS_CHANGED: "ROOM_MEMBERS_CHANGED",
     ROOM_PLAYLIST_CHANGED: "ROOM_PLAYLIST_CHANGED",
+    ROOM_PLAYLIST_SONG_CHANGED: "ROOM_PLAYLIST_SONG_CHANGED",
+    HOST_GET_SONG: "HOST_GET_SONG",
   },
 };
 
@@ -44,6 +46,10 @@ const rooms = {
     totalMembers: 0,
     members: new Set(),
     playlistID: PLAYLISTID,
+    host: {
+      socket_id: "",
+      spotify_id: "",
+    },
     inviteLinks: [
       {
         linkID: uuid(),
@@ -75,10 +81,6 @@ const io = new Server(httpServer, {
     origin: CORSORIGIN,
     credentials: true,
   },
-});
-
-app.get("/", (req, res) => {
-  res.send("Server up");
 });
 
 httpServer.listen(PORT, HOST, () => {
@@ -187,10 +189,22 @@ io.on("connection", (socket) => {
       timeJoined: time,
     });
 
+    if (rooms[roomID].totalMembers === 1) {
+      rooms[roomID].host.socket_id = socket.id;
+    }
+
     socket.emit(EVENTS.SERVER.CLIENT_JOINED_ROOM, {
       roomID: roomID,
       roomName: rooms[roomID].name,
     });
+
+    const host = io.sockets.sockets.get(rooms[roomID].host.socket_id);
+
+    host.emit(EVENTS.SERVER.HOST_GET_SONG, (track) => {
+      console.log(track);
+    });
+
+    //socket.emit(EVENTS.SERVER.ROOM_PLAYLIST_SONG_CHANGED, {uri: , })
 
     const roomMembers = [...rooms[String(roomID)].members];
 
