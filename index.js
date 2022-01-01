@@ -48,7 +48,8 @@ const rooms = {
     playlistID: PLAYLISTID,
     host: {
       socket_id: "",
-      spotify_id: "",
+      songUri: "",
+      progress: 0,
     },
     inviteLinks: [
       {
@@ -200,8 +201,8 @@ io.on("connection", (socket) => {
 
     const host = io.sockets.sockets.get(rooms[roomID].host.socket_id);
 
-    host.emit(EVENTS.SERVER.HOST_GET_SONG, (track) => {
-      console.log(track);
+    host.emit(EVENTS.SERVER.HOST_GET_SONG, ({ uri, progress, timestamp }) => {
+      console.log(uri);
     });
 
     //socket.emit(EVENTS.SERVER.ROOM_PLAYLIST_SONG_CHANGED, {uri: , })
