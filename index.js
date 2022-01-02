@@ -202,10 +202,11 @@ io.on("connection", (socket) => {
     const host = io.sockets.sockets.get(rooms[roomID].host.socket_id);
 
     host.emit(EVENTS.SERVER.HOST_GET_SONG, ({ uri, progress, timestamp }) => {
-      console.log(uri);
+      socket.emit(EVENTS.SERVER.ROOM_PLAYLIST_SONG_CHANGED, {
+        uri: uri,
+        progress: progress,
+      });
     });
-
-    //socket.emit(EVENTS.SERVER.ROOM_PLAYLIST_SONG_CHANGED, {uri: , })
 
     const roomMembers = [...rooms[String(roomID)].members];
 
