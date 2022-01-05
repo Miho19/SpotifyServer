@@ -37,6 +37,7 @@ const EVENTS = {
     ROOM_PLAYLIST_CHANGED: "ROOM_PLAYLIST_CHANGED",
     ROOM_PLAYLIST_SONG_CHANGED: "ROOM_PLAYLIST_SONG_CHANGED",
     HOST_GET_SONG: "HOST_GET_SONG",
+    HOST_INIT: "HOST_INIT",
   },
 };
 
@@ -48,8 +49,6 @@ const rooms = {
     playlistID: PLAYLISTID,
     host: {
       socket_id: "",
-      songUri: "",
-      progress: 0,
     },
     inviteLinks: [
       {
@@ -192,6 +191,8 @@ io.on("connection", (socket) => {
 
     if (rooms[roomID].totalMembers === 1) {
       rooms[roomID].host.socket_id = socket.id;
+
+      socket.emit(EVENTS.SERVER.HOST_INIT);
     }
 
     socket.emit(EVENTS.SERVER.CLIENT_JOINED_ROOM, {
