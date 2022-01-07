@@ -28,6 +28,7 @@ const EVENTS = {
     GET_ROOM_PLAYLISTID: "GET_ROOM_PLAYLISTID",
     GET_CURRENT_ROOM: "GET_CURRENT_ROOM",
     CHANGED_PARTYPLAYLIST: "CHANGED_PARTYPLAYLIST",
+    HOST_CHANGE_SONG: "HOST_CHANGE_SONG",
   },
   SERVER: {
     CLIENT_JOINED_ROOM: "CLIENT_JOINED_ROOM",
@@ -46,7 +47,11 @@ const rooms = {
     name: "Party House #1",
     totalMembers: 0,
     members: new Set(),
-    playlistID: PLAYLISTID,
+    playlist: {
+      playlistID: PLAYLISTID,
+      snapshotID: "",
+    },
+
     host: {
       socket_id: "",
     },
@@ -115,6 +120,17 @@ io.on("connection", (socket) => {
     if (socket.rooms.size === 1) return;
     const currentRoomID = [...socket.rooms][1];
     removeMember(currentRoomID, socket.data.user.name);
+  });
+
+  socket.on(EVENTS.CLIENT.HOST_CHANGE_SONG, () => {
+    const currentRoomID = [...socket.rooms][1];
+
+    socket.emit(EVENTS.SERVER.HOST_GET_SONG, ({ uri, progress, timestamp }) => {
+      io.to(currentRoomID).emit(EVENTS.SERVER.ROOM_PLAYLIST_SONG_CHANGED, {
+        uri: uri,
+        progress: progress,
+      });
+    });
   });
 
   socket.on(EVENTS.CLIENT.CHANGED_PARTYPLAYLIST, () => {
@@ -192,7 +208,20 @@ io.on("connection", (socket) => {
     if (rooms[roomID].totalMembers === 1) {
       rooms[roomID].host.socket_id = socket.id;
 
-      socket.emit(EVENTS.SERVER.HOST_INIT);
+      const setSnapshotID = ({ playlistID, snapshotID }) => {
+        if (playlistID !== rooms[roomID].playlist.playlistID) return;
+
+        rooms[roomID].playlist.snapshotID = snapshotID;
+      };
+      socket.emit(
+        EVENTS.SERVER.HOST_INIT,
+        {
+          playlistID: rooms[roomID].playlist.playlistID,
+        },
+        setSnapshotID
+      );
+
+      socket.data.user.host = true;
     }
 
     socket.emit(EVENTS.SERVER.CLIENT_JOINED_ROOM, {
@@ -265,18 +294,21 @@ io.on("connection", (socket) => {
     callback({ roomMembers: roomMembers });
   });
 
-  socket.on(EVENTS.CLIENT.SET_USER_PROFILE, ({ name, imgSource, email }) => {
-    socket.data.user = { name, imgSource, email };
-  });
+  socket.on(
+    EVENTS.CLIENT.SET_USER_PROFILE,
+    ({ name, imgSource, email, host }) => {
+      socket.data.user = { name, imgSource, email, host };
+    }
+  );
 
   socket.on(EVENTS.CLIENT.GET_ROOM_PLAYLISTID, (callback) => {
     if (!callback) return;
     if (socket.rooms.size === 1) return;
 
     const currentRoomID = [...socket.rooms][1];
-    const playlistID = rooms[String(currentRoomID)].playlistID;
+    const { playlistID, snapshotID } = rooms[String(currentRoomID)].playlist;
 
-    callback({ playlistID });
+    callback({ playlistID, snapshotID });
   });
 
   socket.on(EVENTS.CLIENT.GET_CURRENT_ROOM, (callback) => {
