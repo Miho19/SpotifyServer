@@ -25,12 +25,13 @@ const EVENTS = {
     LEAVE_ROOM: "LEAVE_ROOM",
     GET_ROOM_MEMBERS: "GET_ROOM_MEMBERS",
     GET_ROOM_LIST: "GET_ROOM_LIST",
-    GET_ROOM_PLAYLISTID: "GET_ROOM_PLAYLISTID",
     GET_CURRENT_ROOM: "GET_CURRENT_ROOM",
     CHANGED_PARTYPLAYLIST: "CHANGED_PARTYPLAYLIST",
     HOST_CHANGE_SONG: "HOST_CHANGE_SONG",
+    TOGGLE_PLAYBACK: "TOGGLE_PLAYBACK",
   },
   SERVER: {
+    CLIENT_TOGGLED_PLAYBACK: "CLIENT_TOGGLED_PLAYBACK",
     CLIENT_JOINED_ROOM: "CLIENT_JOINED_ROOM",
     CLIENT_LEFT_ROOM: "CLIENT_LEFT_ROOM",
     EMIT_MESSAGE: "EMIT_MESSAGE",
@@ -122,6 +123,26 @@ io.on("connection", (socket) => {
     removeMember(currentRoomID, socket.data.user.name);
   });
 
+  socket.on(EVENTS.CLIENT.TOGGLE_PLAYBACK, ({ left }) => {
+    if (socket.rooms.size !== 1) {
+      const currentRoomID = [...socket.rooms][1];
+
+      const host = io.sockets.sockets.get(rooms[currentRoomID].host.socket_id);
+
+      host.emit(EVENTS.SERVER.HOST_GET_SONG, ({ uri, progress, timestamp }) => {
+        socket.emit(EVENTS.SERVER.CLIENT_TOGGLED_PLAYBACK, {
+          left,
+          uri,
+          progress,
+        });
+      });
+
+      return;
+    }
+
+    socket.emit(EVENTS.SERVER.CLIENT_TOGGLED_PLAYBACK, { left });
+  });
+
   socket.on(EVENTS.CLIENT.HOST_CHANGE_SONG, () => {
     const currentRoomID = [...socket.rooms][1];
 
@@ -135,6 +156,7 @@ io.on("connection", (socket) => {
 
   socket.on(EVENTS.CLIENT.CHANGED_PARTYPLAYLIST, () => {
     if (socket.rooms.size === 1) return;
+
     const currentRoomID = [...socket.rooms][1];
     io.to(currentRoomID).emit(EVENTS.SERVER.ROOM_PLAYLIST_CHANGED);
   });
@@ -208,17 +230,16 @@ io.on("connection", (socket) => {
     if (rooms[roomID].totalMembers === 1) {
       rooms[roomID].host.socket_id = socket.id;
 
-      const setSnapshotID = ({ playlistID, snapshotID }) => {
-        if (playlistID !== rooms[roomID].playlist.playlistID) return;
-
-        rooms[roomID].playlist.snapshotID = snapshotID;
-      };
       socket.emit(
         EVENTS.SERVER.HOST_INIT,
         {
           playlistID: rooms[roomID].playlist.playlistID,
         },
-        setSnapshotID
+        ({ playlistID, snapshotID }) => {
+          if (playlistID !== rooms[roomID].playlist.playlistID) return;
+
+          rooms[roomID].playlist.snapshotID = snapshotID;
+        }
       );
 
       socket.data.user.host = true;
@@ -227,16 +248,19 @@ io.on("connection", (socket) => {
     socket.emit(EVENTS.SERVER.CLIENT_JOINED_ROOM, {
       roomID: roomID,
       roomName: rooms[roomID].name,
+      playlist: rooms[roomID].playlist,
     });
 
     const host = io.sockets.sockets.get(rooms[roomID].host.socket_id);
 
-    host.emit(EVENTS.SERVER.HOST_GET_SONG, ({ uri, progress, timestamp }) => {
-      socket.emit(EVENTS.SERVER.ROOM_PLAYLIST_SONG_CHANGED, {
-        uri: uri,
-        progress: progress,
+    if (socket.id !== host.id) {
+      host.emit(EVENTS.SERVER.HOST_GET_SONG, ({ uri, progress, timestamp }) => {
+        socket.emit(EVENTS.SERVER.ROOM_PLAYLIST_SONG_CHANGED, {
+          uri: uri,
+          progress: progress,
+        });
       });
-    });
+    }
 
     const roomMembers = [...rooms[String(roomID)].members];
 
@@ -245,12 +269,23 @@ io.on("connection", (socket) => {
       .emit(EVENTS.SERVER.ROOM_MEMBERS_CHANGED, { roomMembers: roomMembers });
   });
 
-  socket.on(EVENTS.CLIENT.LEAVE_ROOM, () => {
+  socket.on(EVENTS.CLIENT.LEAVE_ROOM, async () => {
     if (socket.rooms.size === 1) return;
     const currentRoomID = [...socket.rooms][1];
     removeMember(currentRoomID, socket.data.user.name);
 
     const roomMembers = [...rooms[String(currentRoomID)].members];
+
+    const host = rooms[currentRoomID].host.socket_id;
+
+    if (host === socket.id) {
+      rooms[currentRoomID].host.socket_id = "";
+
+      if (roomMembers.length >= 1) {
+        const ids = await io.in(currentRoomID).allSockets();
+        rooms[currentRoomID].host.socket_id = [...ids][1]; // not done, need to now redo host init
+      }
+    }
 
     socket
       .to(String(currentRoomID))
@@ -317,6 +352,12 @@ io.on("connection", (socket) => {
 
     const currentRoomID = [...socket.rooms][1];
     const currentRoomName = rooms[currentRoomID].name;
-    callback({ roomID: currentRoomID, roomName: currentRoomName });
+    const playlist = rooms[currentRoomID].playlist;
+
+    callback({
+      roomID: currentRoomID,
+      roomName: currentRoomName,
+      playlist: playlist,
+    });
   });
 });
