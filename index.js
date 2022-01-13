@@ -14,7 +14,7 @@ const HOST = "localhost";
 const CORSORIGIN =
   process.env.NODE_ENV === "development"
     ? "http://localhost:3000"
-    : "https://spotify-client-blue.vercel.app/";
+    : "https://spotify-client-blue.vercel.app";
 const PLAYLISTID = "1qzGPv5E2rf7KIeE9wN27Y";
 
 const EVENTS = {
