@@ -9,9 +9,9 @@ import Dayjs from "dayjs";
 const app = express();
 const httpServer = createServer(app);
 
-const PORT = 4000;
+const PORT = process.env.PORT || 4000;
 const HOST = "localhost";
-const CORSORIGIN = "http://localhost:3000";
+const CORSORIGIN = "https://spotify-client-blue.vercel.app/";
 const PLAYLISTID = "1qzGPv5E2rf7KIeE9wN27Y";
 
 const EVENTS = {
@@ -89,8 +89,12 @@ const io = new Server(httpServer, {
   },
 });
 
-httpServer.listen(PORT, HOST, () => {
-  console.log(`Server Listening ${HOST}::${PORT}`);
+app.get("/", (req, res) => {
+  res.send("successfull");
+});
+
+httpServer.listen(PORT, () => {
+  console.log(`Server Listening ${PORT}`);
 
   console.log(
     `Generating permanant links to room keys: ${generateInviteToRoomKey()}`
