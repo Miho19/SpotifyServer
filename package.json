@@ -4,9 +4,13 @@
   "description": "",
   "main": "index.js",
   "type": "module",
+  "engines": {
+    "node": "16.x"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "npx nodemon -r dotenv/config index.js"
+    "dev": "npx nodemon -r dotenv/config index.js",
+    "start": "node -r dotenv/config index.js"
   },
   "keywords": [],
   "author": "",
