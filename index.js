@@ -11,7 +11,10 @@ const httpServer = createServer(app);
 
 const PORT = process.env.PORT || 4000;
 const HOST = "localhost";
-const CORSORIGIN = "https://spotify-client-blue.vercel.app/";
+const CORSORIGIN =
+  process.env.NODE_ENV === "development"
+    ? "http://localhost:3000"
+    : "https://spotify-client-blue.vercel.app/";
 const PLAYLISTID = "1qzGPv5E2rf7KIeE9wN27Y";
 
 const EVENTS = {
