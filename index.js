@@ -21,26 +21,23 @@ const EVENTS = {
   connection: "connection",
   disconnect: "disconnect",
   CLIENT: {
-    CREATE_ROOM: "CREATE_ROOM",
     SET_USER_PROFILE: "SET_USER_PROFILE",
     JOIN_ROOM: "JOIN_ROOM",
-    SEND_MESSAGE: "SEND_MESSAGE",
     LEAVE_ROOM: "LEAVE_ROOM",
+    SEND_MESSAGE: "SEND_MESSAGE",
     GET_ROOM_MEMBERS: "GET_ROOM_MEMBERS",
     GET_ROOM_LIST: "GET_ROOM_LIST",
     GET_CURRENT_ROOM: "GET_CURRENT_ROOM",
-    CHANGED_PARTYPLAYLIST: "CHANGED_PARTYPLAYLIST",
+    UPDATE_PLAYLIST: "CHANGED_PARTYPLAYLIST",
     HOST_CHANGE_SONG: "HOST_CHANGE_SONG",
-    TOGGLE_PLAYBACK: "TOGGLE_PLAYBACK",
   },
   SERVER: {
-    CLIENT_TOGGLED_PLAYBACK: "CLIENT_TOGGLED_PLAYBACK",
     CLIENT_JOINED_ROOM: "CLIENT_JOINED_ROOM",
     CLIENT_LEFT_ROOM: "CLIENT_LEFT_ROOM",
     EMIT_MESSAGE: "EMIT_MESSAGE",
     ROOM_MEMBERS_CHANGED: "ROOM_MEMBERS_CHANGED",
-    ROOM_PLAYLIST_CHANGED: "ROOM_PLAYLIST_CHANGED",
-    ROOM_PLAYLIST_SONG_CHANGED: "ROOM_PLAYLIST_SONG_CHANGED",
+    PLAYLIST_UPDATED: "ROOM_PLAYLIST_CHANGED",
+    CURRENT_SONG_CHANGED: "ROOM_PLAYLIST_SONG_CHANGED",
     HOST_GET_SONG: "HOST_GET_SONG",
     HOST_INIT: "HOST_INIT",
   },
@@ -104,17 +101,57 @@ httpServer.listen(PORT, () => {
   );
 });
 
-const removeMember = (currentRoomID, userName) => {
-  if (!rooms) return;
+const newHostInit = (newHostSocket, roomID) => {
+  if (!newHostSocket || !roomID) return;
+
+  const setRoomPlaylist = ({ playlistID, snapshotID }) => {
+    rooms[roomID].playlist.snapshotID = snapshotID;
+  };
+
+  const playlistID = rooms[String(roomID)].playlist.playlistID;
+
+  newHostSocket.emit(EVENTS.SERVER.HOST_INIT, { playlistID }, setRoomPlaylist);
+
+  rooms[roomID].host.socket_id = newHostSocket.id;
+  newHostSocket.data.user.host = true;
+};
+
+const removeMember = async (currentRoomID, userName, socket_id) => {
   if (!userName) return;
   if (!rooms[currentRoomID]) return;
 
   rooms[String(currentRoomID)].totalMembers -= 1;
-  rooms[String(currentRoomID)].members.forEach((member) => {
-    if (member.name === userName) {
-      rooms[String(currentRoomID)].members.delete(member);
+
+  const newRoomMembers = [...rooms[String(currentRoomID)].members].filter(
+    (member) => member.socketID !== socket_id
+  );
+
+  rooms[String(currentRoomID)].members = newRoomMembers
+    ? new Set(newRoomMembers)
+    : new Set();
+
+  const hostID = rooms[currentRoomID].host.socket_id;
+
+  if (socket_id !== hostID) return;
+  rooms[currentRoomID].host.socket_id = "";
+  console.log("removing host:", rooms[currentRoomID].host.socket_id);
+
+  if (rooms[String(currentRoomID)].members.length < 1) return;
+
+  const ids = await io.in(currentRoomID).allSockets();
+
+  let newHostID = "";
+
+  [...ids].forEach((id) => {
+    if (newHostID === "" && socket_id !== id) {
+      newHostID = id;
     }
   });
+
+  rooms[currentRoomID].host.socket_id = newHostID;
+  const newHost = io.sockets.sockets.get(newHostID);
+
+  newHostInit(newHost, currentRoomID);
 };
 
 io.on("connection", (socket) => {
@@ -127,48 +164,24 @@ io.on("connection", (socket) => {
   socket.on("disconnecting", (reason) => {
     if (socket.rooms.size === 1) return;
     const currentRoomID = [...socket.rooms][1];
-    removeMember(currentRoomID, socket.data.user.name);
-    if (rooms[currentRoomID].host.socket_id === socket.id) {
-      rooms[currentRoomID].host.socket_id = "";
-    }
-  });
-
-  socket.on(EVENTS.CLIENT.TOGGLE_PLAYBACK, ({ left }) => {
-    if (socket.rooms.size !== 1) {
-      const currentRoomID = [...socket.rooms][1];
-
-      const host = io.sockets.sockets.get(rooms[currentRoomID].host.socket_id);
-
-      host.emit(EVENTS.SERVER.HOST_GET_SONG, ({ uri, progress, timestamp }) => {
-        socket.emit(EVENTS.SERVER.CLIENT_TOGGLED_PLAYBACK, {
-          left,
-          uri,
-          progress,
-        });
-      });
-
-      return;
-    }
-
-    socket.emit(EVENTS.SERVER.CLIENT_TOGGLED_PLAYBACK, { left });
+    removeMember(currentRoomID, socket.data.user.name, socket.id);
   });
 
   socket.on(EVENTS.CLIENT.HOST_CHANGE_SONG, () => {
     const currentRoomID = [...socket.rooms][1];
 
     socket.emit(EVENTS.SERVER.HOST_GET_SONG, ({ uri, progress, timestamp }) => {
-      io.to(currentRoomID).emit(EVENTS.SERVER.ROOM_PLAYLIST_SONG_CHANGED, {
+      io.to(currentRoomID).emit(EVENTS.SERVER.CURRENT_SONG_CHANGED, {
         uri: uri,
         progress: progress,
       });
     });
   });
 
-  socket.on(EVENTS.CLIENT.CHANGED_PARTYPLAYLIST, () => {
+  socket.on(EVENTS.CLIENT.UPDATE_PLAYLIST, () => {
     if (socket.rooms.size === 1) return;
-
     const currentRoomID = [...socket.rooms][1];
-    io.to(currentRoomID).emit(EVENTS.SERVER.ROOM_PLAYLIST_CHANGED);
+    io.to(currentRoomID).emit(EVENTS.SERVER.PLAYLIST_UPDATED);
   });
 
   socket.on(EVENTS.CLIENT.JOIN_ROOM, ({ joinLink }) => {
@@ -187,6 +200,7 @@ io.on("connection", (socket) => {
         messagaeID: uuid(),
         time: time,
       });
+      return;
     }
 
     const query = inviteLinkToRoomKey[joinLink];
@@ -198,29 +212,14 @@ io.on("connection", (socket) => {
 
     rooms[roomID].totalMembers += 1;
     rooms[roomID].members.add({
+      socketID: socket.id,
       name: socket.data.user.name,
       imgSource: socket.data.user.imgSource,
       timeJoined: time,
     });
 
-    console.log("host id: ", rooms[roomID].host.socket_id);
-
     if (rooms[roomID].host.socket_id === "") {
-      rooms[roomID].host.socket_id = socket.id;
-
-      const setRoomPlaylist = ({ playlistID, snapshotID }) => {
-        rooms[roomID].playlist.snapshotID = snapshotID;
-      };
-
-      socket.emit(
-        EVENTS.SERVER.HOST_INIT,
-        {
-          playlistID: rooms[roomID].playlist.playlistID,
-        },
-        setRoomPlaylist
-      );
-
-      socket.data.user.host = true;
+      newHostInit(socket, roomID);
     }
 
     socket.emit(EVENTS.SERVER.CLIENT_JOINED_ROOM, {
@@ -229,78 +228,34 @@ io.on("connection", (socket) => {
       playlist: rooms[roomID].playlist,
     });
 
-    const host = io.sockets.sockets.get(rooms[roomID].host.socket_id);
-
-    if (host && host.id !== socket.id) {
-      host.emit(EVENTS.SERVER.HOST_GET_SONG, ({ uri, progress, timestamp }) => {
-        socket.emit(EVENTS.SERVER.ROOM_PLAYLIST_SONG_CHANGED, {
-          uri: uri,
-          progress: progress,
-        });
-      });
-    }
-
     const roomMembers = [...rooms[String(roomID)].members];
 
     socket
       .to(String(roomID))
       .emit(EVENTS.SERVER.ROOM_MEMBERS_CHANGED, { roomMembers: roomMembers });
+
+    const host = io.sockets.sockets.get(rooms[roomID].host.socket_id);
+
+    if (host && host.id === socket.id) return;
+
+    host.emit(EVENTS.SERVER.HOST_GET_SONG, ({ uri, progress, timestamp }) => {
+      socket.emit(EVENTS.SERVER.CURRENT_SONG_CHANGED, {
+        uri: uri,
+        progress: progress,
+      });
+    });
   });
 
-  socket.on(EVENTS.CLIENT.LEAVE_ROOM, async () => {
+  socket.on(EVENTS.CLIENT.LEAVE_ROOM, () => {
     if (socket.rooms.size === 1) return;
     const currentRoomID = [...socket.rooms][1];
-    removeMember(currentRoomID, socket.data.user.name);
+    removeMember(currentRoomID, socket.data.user.name, socket.id);
 
     const roomMembers = [...rooms[String(currentRoomID)].members];
 
-    const host = rooms[currentRoomID].host.socket_id;
-
-    if (host === socket.id) {
-      rooms[currentRoomID].host.socket_id = "";
-      console.log(rooms[currentRoomID].host.socket_id);
-
-      if (roomMembers.length >= 1) {
-        const ids = await io.in(currentRoomID).allSockets();
-        let newHostID = "";
-
-        [...ids].forEach((id) => {
-          if (id !== socket.id && newHostID === "") {
-            newHostID = id;
-          }
-        });
-
-        rooms[currentRoomID].host.socket_id = newHostID; // not done, need to now redo host init
-        const newHost = io.sockets.sockets.get(newHostID);
-        newHost.data.user.host = true;
-
-        newHost.emit(
-          EVENTS.SERVER.HOST_INIT,
-          {
-            playlistID: rooms[roomID].playlist.playlistID,
-          },
-          ({ playlistID, snapshotID }) => {
-            if (playlistID !== rooms[roomID].playlist.playlistID) return;
-
-            rooms[roomID].playlist.snapshotID = snapshotID;
-          }
-        );
-
-        newHost.emit(
-          EVENTS.SERVER.HOST_GET_SONG,
-          ({ uri, progress, timestamp }) => {
-            socket.emit(EVENTS.SERVER.ROOM_PLAYLIST_SONG_CHANGED, {
-              uri: uri,
-              progress: progress,
-            });
-          }
-        );
-      }
-    }
-
-    socket
-      .to(String(currentRoomID))
-      .emit(EVENTS.SERVER.ROOM_MEMBERS_CHANGED, { roomMembers: roomMembers });
+    io.to(String(currentRoomID)).emit(EVENTS.SERVER.ROOM_MEMBERS_CHANGED, {
+      roomMembers: roomMembers,
+    });
 
     socket.leave(currentRoomID);
     socket.emit(EVENTS.SERVER.CLIENT_LEFT_ROOM);
