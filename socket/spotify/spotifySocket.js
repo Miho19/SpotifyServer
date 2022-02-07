@@ -79,6 +79,7 @@ export function registerSpotifyHandlers(io, socket) {
     });
 
     const host = io.sockets.sockets.get(rooms[roomID].host.socket_id);
+    if (!host) return;
     if (host && host.id === socket.id) return;
 
     host.emit(EVENTS.SERVER.HOST_GET_SONG, ({ uri, progress, timestamp }) => {
@@ -111,6 +112,8 @@ export function registerSpotifyHandlers(io, socket) {
     io.to(currentRoomID).emit(EVENTS.SERVER.EMIT_MESSAGE, {
       message: message,
       senderID: socket.id,
+      senderName: socket.data.user.name,
+      senderImgSource: socket.data.user.imgSource,
       messageID: uuid(),
       time: Dayjs(),
     });

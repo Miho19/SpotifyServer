@@ -4,16 +4,17 @@ import { rooms } from "./spotifyRooms.js";
 export const newHostInit = (newHostSocket, roomID) => {
   if (!newHostSocket || !roomID) return;
 
-  const setRoomPlaylist = ({ playlistID, snapshotID }) => {
+  const setRoomPlaylist = ({ playlistID, snapshotID }, error = null) => {
+    if (error === "free") return;
+
     rooms[roomID].playlist.snapshotID = snapshotID;
+    rooms[roomID].host.socket_id = newHostSocket.id;
+    newHostSocket.data.user.host = true;
   };
 
   const playlistID = rooms[String(roomID)].playlist.playlistID;
 
   newHostSocket.emit(EVENTS.SERVER.HOST_INIT, { playlistID }, setRoomPlaylist);
-
-  rooms[roomID].host.socket_id = newHostSocket.id;
-  newHostSocket.data.user.host = true;
 };
 
 export const removeMember = async (currentRoomID, userName, socket_id, io) => {
