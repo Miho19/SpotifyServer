@@ -43,8 +43,6 @@ const getRoom = (req, res) => {
   const memberList = [...room.members].map((member) => {
     return {
       uesrName: member.name,
-      imgSource: member.imgSource,
-      joined: member.timeJoined,
     };
   });
 
@@ -60,5 +58,23 @@ const getRoom = (req, res) => {
   res.status(202).json({ success: true, data: [roomData] });
 };
 
+const getMembers = (req, res) => {
+  const { id } = req.params;
+  if (!id) return res.status(400).json({ success: false, data: [] });
+
+  const room = rooms[String(id)];
+
+  if (!room) return res.status(404).json({ success: false, data: [] });
+
+  const memberList = [...room.members].map((member) => {
+    return {
+      uesrName: member.name,
+    };
+  });
+
+  return res.status(202).json({ success: true, data: memberList });
+};
+
 roomsRouter.get("/", getRooms);
 roomsRouter.get("/:id", getRoom);
+roomsRouter.get("/:id/members", getMembers);

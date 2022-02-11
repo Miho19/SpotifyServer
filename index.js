@@ -35,6 +35,11 @@ app.get("/", (req, res) => {
   res.send("Home Page");
 });
 
+app.get("*", (req, res) => {
+  const url = req.url;
+  res.status(404).send(`"${url}" is not a valid path`);
+});
+
 httpServer.listen(PORT, () => {
   console.log(`Server Listening ${PORT}`);
   generateInviteToRoomKey();
