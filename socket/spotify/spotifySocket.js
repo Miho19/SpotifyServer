@@ -93,7 +93,7 @@ export function registerSpotifyHandlers(io, socket) {
   const leaveRoom = () => {
     if (socket.rooms.size === 1) return;
     const currentRoomID = [...socket.rooms][1];
-    removeMember(currentRoomID, socket.data.user.name, socket.id);
+    removeMember(currentRoomID, socket.data.user.name, socket.id, io);
 
     const roomMembers = [...rooms[String(currentRoomID)].members];
     io.to(String(currentRoomID)).emit(EVENTS.SERVER.ROOM_MEMBERS_CHANGED, {
