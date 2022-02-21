@@ -34,6 +34,9 @@ export const removeMember = async (currentRoomID, userName, socket_id, io) => {
   const hostID = rooms[currentRoomID].host.socket_id;
 
   if (socket_id !== hostID) return;
+  const currentHost = io.sockets.sockets.get(socket_id);
+
+  currentHost.emit(EVENTS.SERVER.CLIENT_SET_HOST, { host: false });
   rooms[currentRoomID].host.socket_id = "";
   console.log("removing host:", rooms[currentRoomID].host.socket_id);
 
