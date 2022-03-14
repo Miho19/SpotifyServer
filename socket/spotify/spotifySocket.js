@@ -8,7 +8,7 @@ import { v4 as uuid } from "uuid";
 
 export function registerSpotifyHandlers(io, socket) {
   const disconnect = () => {
-    console.log("user disconnected");
+    console.log(`${socket.data.user.name} disconnected\tid:${socket.id}`);
   };
 
   const disconnecting = (reason) => {
