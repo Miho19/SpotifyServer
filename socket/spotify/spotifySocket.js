@@ -6,8 +6,11 @@ import { inviteLinkToRoomKey, rooms } from "./spotifyRooms.js";
 import Dayjs from "dayjs";
 import { v4 as uuid } from "uuid";
 
+import { serverSpotifyApi } from "../../util/spotify.js";
+
 export function registerSpotifyHandlers(io, socket) {
   const disconnect = () => {
+    if (!socket.data.user) return;
     console.log(`${socket.data.user.name} disconnected\tid:${socket.id}`);
   };
 
@@ -169,6 +172,27 @@ export function registerSpotifyHandlers(io, socket) {
     socket.data.user = { name, imgSource, email, host };
   };
 
+  const addSongToRoom = async ({ track, partyPlaylistID }) => {
+    if (socket.rooms.size === 1) return;
+    if (!serverSpotifyApi.getAccessToken()) return;
+    if (!partyPlaylistID) return;
+
+    const currentRoomID = [...socket.rooms][1];
+
+    try {
+      const addResponse = await serverSpotifyApi.addTracksToPlaylist(
+        partyPlaylistID,
+        [track.track.uri]
+      );
+    } catch (error) {
+      console.log(
+        `Error ${addResponse.statusCode}: playlist: ${partyPlaylistID} track: ${track.track}`
+      );
+    }
+
+    io.to(currentRoomID).emit(EVENTS.SERVER.PLAYLIST_UPDATED);
+  };
+
   socket.on(EVENTS.disconnect, disconnect);
   socket.on(EVENTS.disconnecting, disconnecting);
   socket.on(EVENTS.CLIENT.HOST_CHANGE_SONG, updateRoomSong);
@@ -181,4 +205,5 @@ export function registerSpotifyHandlers(io, socket) {
   socket.on(EVENTS.CLIENT.SET_USER_PROFILE, setUserProfile);
   socket.on(EVENTS.CLIENT.GET_ROOM_PLAYLISTID, getRoomPlaylistID);
   socket.on(EVENTS.CLIENT.GET_CURRENT_ROOM, getCurrentRoom);
+  socket.on(EVENTS.CLIENT.ADD_SONG_TO_CURRENT_ROOM, addSongToRoom);
 }

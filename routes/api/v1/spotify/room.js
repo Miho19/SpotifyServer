@@ -1,5 +1,5 @@
 import express from "express";
-import { rooms } from "../../../socket/spotify/spotifyRooms.js";
+import { rooms } from "../../../../socket/spotify/spotifyRooms.js";
 
 export const roomsRouter = express.Router();
 

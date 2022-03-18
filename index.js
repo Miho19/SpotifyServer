@@ -9,12 +9,19 @@ import { registerSpotifyHandlers } from "./socket/spotify/spotifySocket.js";
 
 import { generateInviteToRoomKey } from "./socket/spotify/spotifyRooms.js";
 
-import { roomsRouter } from "./routes/api/spotify/room.js";
+import { roomsRouter } from "./routes/api/v1/spotify/room.js";
+import { guestRouter } from "./routes/api/v1/spotify/guest.js";
+import { spotifyInit } from "./util/spotify.js";
+
+import { callbackRouter } from "./routes/api/auth/callback/index.js";
 
 const app = express();
 const httpServer = createServer(app);
 
-app.use("/api/spotify/room/", roomsRouter);
+app.use("/api/v1/spotify/room/", roomsRouter);
+app.use("/api/v1/spotify/guest/", guestRouter);
+app.use("/api/auth/callback/", callbackRouter);
+
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
@@ -42,5 +49,6 @@ app.get("*", (req, res) => {
 
 httpServer.listen(PORT, () => {
   console.log(`Server Listening ${PORT}`);
+  spotifyInit();
   generateInviteToRoomKey();
 });
