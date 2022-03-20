@@ -1,5 +1,7 @@
 import SpotifyWebApi from "spotify-web-api-node";
 
+import { connection } from "./mysql.js";
+
 export const guestSpotifyApi = new SpotifyWebApi({
   clientId: process.env.SPOTIFY_CLIENT_ID,
   clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
@@ -15,7 +17,7 @@ export const guestToken = {};
 
 export const serverToken = {};
 
-const setupGuestAccess = async () => {
+const setupGuestAccess = async (time) => {
   const response = await guestSpotifyApi.clientCredentialsGrant();
 
   if (response.statusCode !== 200) {
@@ -23,7 +25,9 @@ const setupGuestAccess = async () => {
   }
 
   guestToken.access_token = response.body.access_token;
-  guestToken.expires_at = Date.now() / 1000 + response.body.expires_in;
+  guestToken.expires_at = time.setHours(
+    time.getHours() + response.body.expires_in / 3600
+  );
 
   guestSpotifyApi.setAccessToken(response.body.access_token);
 };
@@ -56,7 +60,32 @@ const setupServerAccess = async () => {
   console.log(LOGIN_URL);
 };
 
+const refreshServer = async (rows, time) => {
+  const { id, name, refreshToken, expires_at } = rows[0];
+
+  serverSpotifyApi.setRefreshToken(refreshToken);
+  const refreshResponse = await serverSpotifyApi.refreshAccessToken();
+
+  if (refreshResponse.statusCode !== 200)
+    return console.log("Error getting refresh token");
+
+  const { access_token, expires_in } = refreshResponse.body;
+
+  serverToken.accessToken = access_token;
+  time.setHours(time.getHours() + expires_in / 3600);
+  serverToken.expires_at = time;
+
+  serverSpotifyApi.setAccessToken(access_token);
+};
+
 export const spotifyInit = async () => {
-  setupGuestAccess();
-  setupServerAccess();
+  const [rows, fields] = await connection.query(
+    "SELECT * from token WHERE name=?",
+    ["serverRefreshToken"]
+  );
+
+  const time = new Date();
+
+  setupGuestAccess(time);
+  !rows.length ? setupServerAccess() : refreshServer(rows, time);
 };

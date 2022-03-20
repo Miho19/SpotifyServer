@@ -1,10 +1,12 @@
 import express from "express";
+import { connection } from "../../../../util/mysql.js";
 import { serverSpotifyApi, serverToken } from "../../../../util/spotify.js";
 
 export const callbackRouter = express.Router();
 
 const spotifyHandler = async (req, res) => {
   const { state, code } = req.query;
+  const time = new Date();
 
   if (state !== process.env.SPOTIFY_STATE) return res.status(500).redirect("/");
 
@@ -17,8 +19,18 @@ const spotifyHandler = async (req, res) => {
   serverSpotifyApi.setAccessToken(access_token);
   serverSpotifyApi.setRefreshToken(refresh_token);
 
+  time.setHours(time.getHours() + expires_in / 3600);
   serverToken.accessToken = access_token;
-  serverToken.expires_in = expires_in;
+  serverToken.expires_at = time;
+
+  connection.query(
+    "INSERT INTO token(name, refreshToken, expires_at) VALUES(?, ?, ?)",
+    [
+      "serverRefreshToken",
+      serverSpotifyApi.getRefreshToken(),
+      serverToken.expires_at,
+    ]
+  );
 
   res.redirect("/");
 };

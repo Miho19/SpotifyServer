@@ -15,6 +15,8 @@ import { spotifyInit } from "./util/spotify.js";
 
 import { callbackRouter } from "./routes/api/auth/callback/index.js";
 
+import { connection } from "./util/mysql.js";
+
 const app = express();
 const httpServer = createServer(app);
 
@@ -38,7 +40,7 @@ const connectionHandler = (socket) => {
 
 io.on("connection", connectionHandler);
 
-app.get("/", (req, res) => {
+app.get("/", async (req, res) => {
   res.send("Home Page");
 });
 
