@@ -172,7 +172,7 @@ export function registerSpotifyHandlers(io, socket) {
     socket.data.user = { name, imgSource, email, host };
   };
 
-  const addSongToRoom = async ({ track, partyPlaylistID }) => {
+  const addSongToRoom = async ({ track, partyPlaylistID }, callback) => {
     if (socket.rooms.size === 1) return;
     if (!serverSpotifyApi.getAccessToken()) return;
     if (!partyPlaylistID) return;
@@ -190,7 +190,7 @@ export function registerSpotifyHandlers(io, socket) {
       );
     }
 
-    io.to(currentRoomID).emit(EVENTS.SERVER.PLAYLIST_UPDATED);
+    callback();
   };
 
   socket.on(EVENTS.disconnect, disconnect);
