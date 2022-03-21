@@ -7,10 +7,15 @@ export const guestSpotifyApi = new SpotifyWebApi({
   clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
 });
 
+const redirectURI =
+  process.env.NODE_ENV === "production"
+    ? `https://spotifyserver1.herokuapp.com/api/auth/callback/spotify/`
+    : "http://localhost:4000/api/auth/callback/spotify/";
+
 export const serverSpotifyApi = new SpotifyWebApi({
   clientId: process.env.SPOTIFY_CLIENT_ID,
   clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
-  redirectUri: "http://localhost:4000/api/auth/callback/spotify/",
+  redirectUri: redirectURI,
 });
 
 export const guestToken = {};
