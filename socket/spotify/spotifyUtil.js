@@ -4,12 +4,21 @@ import { rooms } from "./spotifyRooms.js";
 export const newHostInit = (newHostSocket, roomID) => {
   if (!newHostSocket || !roomID) return;
 
+  const errorCheckStartPlayer = (error = null) => {
+    if (error === "PLAYER_FAILED") {
+      rooms[roomID].playlist.snapshotID = "";
+      rooms[roomID].host.socket_id = "";
+      newHostSocket.data.user.host = false;
+      return;
+    }
+  };
+
   const setRoomPlaylist = ({ playlistID, snapshotID }, error = null) => {
     if (error === "free") return;
-
     rooms[roomID].playlist.snapshotID = snapshotID;
     rooms[roomID].host.socket_id = newHostSocket.id;
     newHostSocket.data.user.host = true;
+    newHostSocket.emit(EVENTS.SERVER.HOST_START_PLAYER, errorCheckStartPlayer);
   };
 
   const playlistID = rooms[String(roomID)].playlist.playlistID;

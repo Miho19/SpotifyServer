@@ -1,6 +1,6 @@
 import EVENTS from "./spotifyEvents.js";
 
-import { newHostInit, removeMember, addMember } from "./spotifyUtil.js";
+import { removeMember, addMember } from "./spotifyUtil.js";
 import { inviteLinkToRoomKey, rooms } from "./spotifyRooms.js";
 
 import Dayjs from "dayjs";
