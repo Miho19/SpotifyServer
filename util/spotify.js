@@ -69,18 +69,19 @@ const refreshServer = async (rows, time) => {
   const { id, name, refreshToken, expires_at } = rows[0];
 
   serverSpotifyApi.setRefreshToken(refreshToken);
-  const refreshResponse = await serverSpotifyApi.refreshAccessToken();
+  try {
+    const refreshResponse = await serverSpotifyApi.refreshAccessToken();
+    const { access_token, expires_in } = refreshResponse.body;
 
-  if (refreshResponse.statusCode !== 200)
-    return console.log("Error getting refresh token");
+    serverToken.accessToken = access_token;
+    time.setHours(time.getHours() + expires_in / 3600);
+    serverToken.expires_at = time;
 
-  const { access_token, expires_in } = refreshResponse.body;
-
-  serverToken.accessToken = access_token;
-  time.setHours(time.getHours() + expires_in / 3600);
-  serverToken.expires_at = time;
-
-  serverSpotifyApi.setAccessToken(access_token);
+    serverSpotifyApi.setAccessToken(access_token);
+  } catch (error) {
+    console.log(error);
+    setupServerAccess();
+  }
 };
 
 export const spotifyInit = async () => {
