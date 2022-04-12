@@ -18,7 +18,11 @@ export const newHostInit = (newHostSocket, roomID) => {
     rooms[roomID].playlist.snapshotID = snapshotID;
     rooms[roomID].host.socket_id = newHostSocket.id;
     newHostSocket.data.user.host = true;
-    newHostSocket.emit(EVENTS.SERVER.HOST_START_PLAYER, errorCheckStartPlayer);
+    newHostSocket.emit(
+      EVENTS.SERVER.HOST_START_PLAYER,
+      playlistID,
+      errorCheckStartPlayer
+    );
   };
 
   const playlistID = rooms[String(roomID)].playlist.playlistID;
