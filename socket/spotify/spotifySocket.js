@@ -22,9 +22,9 @@ export function registerSpotifyHandlers(io, socket) {
 
   const updateRoomSong = () => {
     const currentRoomID = [...socket.rooms][1];
-    socket.emit(EVENTS.SERVER.HOST_GET_SONG, ({ uri, progress, timestamp }) => {
+    socket.emit(EVENTS.SERVER.HOST_GET_SONG, ({ id, progress, timestamp }) => {
       io.to(currentRoomID).emit(EVENTS.SERVER.CURRENT_SONG_CHANGED, {
-        uri,
+        id,
         progress,
       });
     });
@@ -85,10 +85,10 @@ export function registerSpotifyHandlers(io, socket) {
     if (!host) return;
     if (host && host.id === socket.id) return;
 
-    host.emit(EVENTS.SERVER.HOST_GET_SONG, ({ uri, progress, timestamp }) => {
+    host.emit(EVENTS.SERVER.HOST_GET_SONG, ({ id, progress, timestamp }) => {
       socket.emit(EVENTS.SERVER.CURRENT_SONG_CHANGED, {
-        uri: uri,
-        progress: progress,
+        id,
+        progress,
       });
     });
   };
